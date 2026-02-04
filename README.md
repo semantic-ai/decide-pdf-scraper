@@ -1,5 +1,5 @@
 # decide-pdf-scraper
-This service allows to gather the download URLs of new PDFs containing meeting resolution of local governments (currently just Freiburg). A PDF is considered new if its download URL is not yet present in the triple store as the object of the predicate eli:is_exemplified_by of an ELI Manifestation.
+This service allows to gather the download URLs of new PDFs containing meeting resolution of local governments (currently Freiburg and Flemish cities). A PDF is considered new if its download URL is not yet present in the triple store as the object of the predicate eli:is_exemplified_by of an ELI Manifestation.
 
 ## Set-up
 1. Clone the repository [lblod/app-decide](https://github.com/lblod/app-decide), expose the containers so that they can communicate with each other, and then run both containers. 
@@ -25,6 +25,9 @@ This service allows to gather the download URLs of new PDFs containing meeting r
 2. Mount the folder data/files in the lblod/app-decide repo as a volume and add the mounted path as the environment variable 'MOUNTED_SHARE_FOLDER'. This is the location where the local PDFs must be stored, whereas the remote PDFs will be saved in the folder 'extract' at that location.
 
 3. The file sparql_config.py allows to easily configure SPARQL prefixes and URIs. In case a single graph for input and a single graph for output is desired, set the environment variables TARGET_GRAPH (input) and/or PUBLICATION_GRAPH (output).
+
+4. Set the environment variable DESIRED_CITY to the name of the city to scrape PDFs from.
+Currently, only Freiburg and Flemish cities are supported. (For the latter, only if their decision PDFs are included in https://lokaalbeslist-harvester-2.s.redhost.be/sparql)
    
 ## Running
 Run the container using 

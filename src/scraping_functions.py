@@ -1,26 +1,29 @@
+from string import Template
 import requests
+from helpers import query
+from .sparql_config import get_prefixes_for_query
 
 
 def get_freiburg_download_urls(
-    base_meeting_endpoint: str = "https://ris.freiburg.de/oparl/body/FR/meeting/page/"
+    base_endpoint: str = "https://ris.freiburg.de/oparl/body/FR/meeting/page/"
 ) -> list[str]:
     """
     Scrape the Freiburg OParl endpoint to gather PDF download URLs
     for meeting resolution files.
 
     Args:
-        base_meeting_endpoint: The base URL for the meeting pages.
+        base_endpoint: The base URL for the meeting pages.
 
     Returns:
         A list of all PDF download URLs.
     """
-    first_page_url = base_meeting_endpoint + "1"
+    first_page_url = base_endpoint + "1"
     meeting_data = requests.get(first_page_url).json()
     total_pages = meeting_data.get("pagination", {}).get("totalPages", 1)
 
     download_urls = []
     for page in range(1, total_pages + 1):
-        page_url = base_meeting_endpoint + str(page)
+        page_url = base_endpoint + str(page)
         page_data = requests.get(page_url).json()
 
         meetings_on_page = page_data.get("data", [])
@@ -33,12 +36,55 @@ def get_freiburg_download_urls(
                     download_url = resolution_file.get("downloadUrl", "")
                     if download_url:
                         download_urls.append(download_url)
-                        if len(download_urls) >= 11:
-                            break
-            if len(download_urls) >= 11:
-                break
 
-        if len(download_urls) >= 11:
+    return download_urls
+
+
+def get_flanders_city_download_urls(
+    city: str,
+    base_endpoint: str = "https://lokaalbeslist-harvester-2.s.redhost.be/sparql"
+) -> list[str]:
+    """
+    Fetch PDF URLs for decisions of a given city.
+    Args:
+        city: The city to filter the decisions by.
+        base_endpoint: The SPARQL endpoint to query.
+    Returns:
+        A list of PDF download URLs for the given city.
+    """
+
+    download_urls = []
+    offset = 0
+    HEADERS = {"Accept": "application/sparql-results+json"}
+
+    while True:
+        q = Template(
+            get_prefixes_for_query("prov", "besluit") +
+            f"""
+            SELECT DISTINCT ?notulepdf WHERE {{
+              ?s a besluit:Besluit ;
+                 prov:value ?notulepdf .
+              FILTER(
+                STRSTARTS(STR(?notulepdf), "https://lblod.{city}") &&
+                CONTAINS(STR(?notulepdf), "pdf")
+              )
+            }}
+            OFFSET $offset
+            LIMIT 1000
+            """
+        ).substitute(offset=offset)
+
+        response = requests.get(
+            base_endpoint, params={"query": q}, headers=HEADERS)
+
+        data = response.json()
+        bindings = data.get("results", {}).get("bindings", [])
+
+        if not bindings:
             break
+
+        download_urls.extend(b["notulepdf"]["value"] for b in bindings)
+
+        offset += 1000
 
     return download_urls
