@@ -1,0 +1,26 @@
+services:
+  pdf-scraper-service:
+    container_name: pdf-scraper-service
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    networks:
+      - decide
+    environment:
+      MODE: "development"
+      LOG_LEVEL: "info"
+      MU_SPARQL_ENDPOINT: http://virtuoso:8890/sparql
+      MU_SPARQL_UPDATEPOINT: http://virtuoso:8890/sparql
+      EXPECTED_TASK_PREDICATE: "http://www.w3.org/ns/adms#status"
+      EXPECTED_TASK_OBJECT: "http://redpencil.data.gift/id/concept/JobStatus/scheduled"
+      TARGET_GRAPH: http://mu.semte.ch/graphs/harvesting
+      PUBLICATION_GRAPH: http://mu.semte.ch/graphs/publication
+      MOUNTED_SHARE_FOLDER: "/mnt/share"
+    volumes:
+      - ./:/app
+
+networks:
+  decide:
+    external: true
