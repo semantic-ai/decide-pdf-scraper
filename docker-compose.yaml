@@ -18,7 +18,7 @@ services:
       TARGET_GRAPH: http://mu.semte.ch/graphs/harvesting
       PUBLICATION_GRAPH: http://mu.semte.ch/graphs/publication
       MOUNTED_SHARE_FOLDER: "/mnt/share"
-      DESIRED_CITY: "herzele" # Options: Freiburg, Flanders city name (e.g., "zele")
+      SOURCE: "https://district09.gent/nl/over-ons/besluiten-overlegorganen" # Options: Freiburg, Flanders city name (e.g., "zele") or any URL containing PDF links
     volumes:
       - ./:/app
 

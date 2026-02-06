@@ -1,6 +1,7 @@
-from string import Template
 import requests
-from helpers import query
+from string import Template
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse, urljoin
 from .sparql_config import get_prefixes_for_query
 
 
@@ -88,3 +89,41 @@ def get_flanders_city_download_urls(
         offset += 1000
 
     return download_urls
+
+
+def get_all_pdf_links_from_a_url(url: str) -> list[str]:
+    """
+    Fetch all PDF links from a given URL.
+
+    Args:
+        url: The URL to scrape for PDF links.
+
+    Returns:
+        A list of PDF links found on the page.
+    """
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, "html.parser")
+
+    pdf_links = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if href.lower().endswith(".pdf"):
+            full_url = urljoin(url, href)
+            pdf_links.append(full_url)
+
+    return pdf_links
+
+
+def is_url(string: str) -> bool:
+    """Check if a string is a valid URL.
+
+    Args:
+        string: The string to check.
+
+    Returns:
+        True if the string is a valid URL, False otherwise."""
+    try:
+        result = urlparse(string)
+        return all([result.scheme, result.netloc])
+    except:
+        return False

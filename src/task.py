@@ -6,7 +6,7 @@ from string import Template
 from typing import Optional, Type
 from abc import ABC, abstractmethod
 
-from .scraping_functions import get_flanders_city_download_urls, get_freiburg_download_urls
+from .scraping_functions import get_all_pdf_links_from_a_url, get_flanders_city_download_urls, get_freiburg_download_urls, is_url
 from .sparql_config import TASK_OPERATIONS, get_prefixes_for_query, GRAPHS, JOB_STATUSES
 from escape_helpers import sparql_escape_uri, sparql_escape_string
 from helpers import query, update, sparqlQuery, sparqlUpdate
@@ -123,7 +123,7 @@ class Task(ABC):
 
 class PdfScrapingTask(Task, ABC):
     """
-    Task for scraping new PDF documents for a given source (currently Freiburg and Flemish cities).
+    Task for scraping new PDF documents for a given source.
     """
 
     __task_type__ = TASK_OPERATIONS["pdf_scraping"]
@@ -275,17 +275,21 @@ class PdfScrapingTask(Task, ABC):
     def process(self):
         """
         Implementation of Task's process function that
-        - gathers all PDF download URLs from an endpoint (currently Freiburg and Flemish cities)
+        - gathers all PDF download URLs from a source
+          (either a URL, Freiburg or a Flemish city, depending on the SOURCE environment variable)
         - checks which URLs are not yet present in the triplestore
         - creates remote data objects for the missing URLs
         - creates a harvesting collection containing these remote data objects
         - creates a data container containing the harvesting collection
         """
-        desired_city = os.environ["DESIRED_CITY"].lower()
-        if desired_city == "freiburg":
+        source = os.environ["SOURCE"]
+
+        if is_url(source):
+            download_urls = get_all_pdf_links_from_a_url(source)
+        elif source.lower() == "freiburg":
             download_urls = get_freiburg_download_urls()
         else:
-            download_urls = get_flanders_city_download_urls(desired_city)
+            download_urls = get_flanders_city_download_urls(source)
 
         missing_download_urls = self.get_new_download_urls(download_urls)
 
