@@ -101,17 +101,20 @@ def get_all_pdf_links_from_a_url(url: str) -> list[str]:
     Returns:
         A list of PDF links found on the page.
     """
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, "html.parser")
+    if url.endswith(".pdf"):
+        return [url]
+    else:
+        r = requests.get(url)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-    pdf_links = []
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if href.lower().endswith(".pdf"):
-            full_url = urljoin(url, href)
-            pdf_links.append(full_url)
+        pdf_links = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if href.lower().endswith(".pdf"):
+                full_url = urljoin(url, href)
+                pdf_links.append(full_url)
 
-    return pdf_links
+        return pdf_links
 
 
 def is_url(string: str) -> bool:
