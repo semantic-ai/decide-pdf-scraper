@@ -1,4 +1,3 @@
-import os
 import uuid
 import logging
 import contextlib
@@ -130,6 +129,60 @@ class PdfScrapingTask(Task, ABC):
 
     def __init__(self, task_uri: str):
         super().__init__(task_uri)
+
+    def fetch_source_from_task(self) -> str:
+        """
+        Retrieve the source URL (or identifier) linked to this task.
+
+        This combines fetching the input container and then fetching
+        the source associated with that container.
+
+        Returns:
+            string containing the source to scrape (either a URL, "Freiburg" or a Flemish city name)
+        """
+
+        q_container = Template(
+            get_prefixes_for_query("task") +
+            f"""
+            SELECT ?container WHERE {{
+            GRAPH <{GRAPHS["jobs"]}> {{
+                BIND($task AS ?task)
+                ?task task:inputContainer ?container .
+            }}
+            }}
+            """
+        ).substitute(task=sparql_escape_uri(self.task_uri))
+
+        bindings = query(q_container).get("results", {}).get("bindings", [])
+        if not bindings:
+            raise RuntimeError(
+                f"No input container found for task {self.task_uri}")
+
+        container_uri = bindings[0]["container"]["value"]
+
+        q_source = f"""
+            {get_prefixes_for_query("task", "dct", "nfo", "nie")}
+            SELECT ?source WHERE {{
+            GRAPH <{GRAPHS["data_containers"]}> {{
+                <{container_uri}> task:hasHarvestingCollection ?collection .
+            }}
+            GRAPH <{GRAPHS["harvest_collections"]}> {{
+                ?collection dct:hasPart ?remote .
+            }}
+            GRAPH <{GRAPHS["remote_objects"]}> {{
+                ?remote a nfo:RemoteDataObject ;
+                        nie:url ?source .
+            }}
+            }}
+            """
+
+        bindings = query(q_source).get("results", {}).get("bindings", [])
+        if not bindings:
+            raise RuntimeError(
+                "No remote files found in harvesting collection")
+
+        source = bindings[0]["source"]["value"]
+        return source
 
     def get_new_download_urls(self, urls: list[str], batch_size: int = 20) -> list[str]:
         """
@@ -282,7 +335,7 @@ class PdfScrapingTask(Task, ABC):
         - creates a harvesting collection containing these remote data objects
         - creates a data container containing the harvesting collection
         """
-        source = os.environ["SOURCE"]
+        source = self.fetch_source_from_task()
 
         if is_url(source):
             download_urls = get_all_pdf_links_from_a_url(source)
