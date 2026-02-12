@@ -8,10 +8,7 @@ from abc import ABC, abstractmethod
 from .scraping_functions import get_all_pdf_links_from_a_url, get_flanders_city_download_urls, get_freiburg_download_urls, is_url
 from .sparql_config import TASK_OPERATIONS, get_prefixes_for_query, GRAPHS, JOB_STATUSES
 from escape_helpers import sparql_escape_uri, sparql_escape_string
-from helpers import query, update, sparqlQuery, sparqlUpdate
-
-sparqlQuery.customHttpHeaders["mu-auth-sudo"] = "true"
-sparqlUpdate.customHttpHeaders["mu-auth-sudo"] = "true"
+from helpers import query, update
 
 
 class Task(ABC):
@@ -54,7 +51,7 @@ class Task(ABC):
               BIND($uri AS ?task)
             }
         """).substitute(uri=sparql_escape_uri(task_uri))
-        for b in query(q).get('results').get('bindings'):
+        for b in query(q, sudo=True).get('results').get('bindings'):
             candidate_cls = cls.lookup(b['taskType']['value'])
             if candidate_cls is not None:
                 return candidate_cls(task_uri)
@@ -100,7 +97,7 @@ class Task(ABC):
             task=sparql_escape_uri(self.task_uri),
             results_container_line=results_container_line)
 
-        update(query_string)
+        update(query_string, sudo=True)
 
     @contextlib.contextmanager
     def run(self):
@@ -153,7 +150,8 @@ class PdfScrapingTask(Task, ABC):
             """
         ).substitute(task=sparql_escape_uri(self.task_uri))
 
-        bindings = query(q_container).get("results", {}).get("bindings", [])
+        bindings = query(q_container, sudo=True).get(
+            "results", {}).get("bindings", [])
         if not bindings:
             raise RuntimeError(
                 f"No input container found for task {self.task_uri}")
@@ -176,7 +174,8 @@ class PdfScrapingTask(Task, ABC):
             }}
             """
 
-        bindings = query(q_source).get("results", {}).get("bindings", [])
+        bindings = query(q_source, sudo=True).get(
+            "results", {}).get("bindings", [])
         if not bindings:
             raise RuntimeError(
                 "No remote files found in harvesting collection")
@@ -213,7 +212,7 @@ class PdfScrapingTask(Task, ABC):
                 """
             ).substitute()
 
-            results = query(q)
+            results = query(q, sudo=True)
             existing_urls.update(
                 b.get("url", {}).get("value")
                 for b in results.get("results", {}).get("bindings", [])
@@ -254,7 +253,7 @@ class PdfScrapingTask(Task, ABC):
             url=sparql_escape_uri(url)
         )
 
-        update(q)
+        update(q, sudo=True)
 
         return remote_object_uri
 
@@ -289,7 +288,7 @@ class PdfScrapingTask(Task, ABC):
             uuid=sparql_escape_string(harvest_uuid),
         )
 
-        update(q)
+        update(q, sudo=True)
         return harvest_uri
 
     def create_data_container(self, harvest_collection_uri: str) -> str:
@@ -322,7 +321,7 @@ class PdfScrapingTask(Task, ABC):
             harvest=sparql_escape_uri(harvest_collection_uri),
         )
 
-        update(q)
+        update(q, sudo=True)
         return container_uri
 
     def process(self):
