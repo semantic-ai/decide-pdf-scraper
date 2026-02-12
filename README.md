@@ -2,31 +2,18 @@
 This service allows to gather the download URLs of new PDFs containing meeting resolution of local governments. A PDF is considered new if its download URL is not yet present in the triple store as the object of the predicate eli:is_exemplified_by of an ELI Manifestation.
 
 ## Set-up
-1. Clone the repository [lblod/app-decide](https://github.com/lblod/app-decide), expose the containers so that they can communicate with each other, and then run both containers. 
+1. Add the service to your Semantic.Works application in the docker-compose.yml:
 
-   Exposing the containers was done by adding a file 'docker-compose.override.yaml' to the lblod/app-decide repo containing:
    ```
-   services:
-     virtuoso:
-       networks:
-         - decide
-       ports:
-         - "8890:8890"
-   
-   networks:
-     decide:
-       external: true
-   ```
-   Create the 'decide' Docker network using the following command:
-   ```
-   docker network create decide
+    pdf-scraper:
+      image: semanticai/decide-pdf-scraper:0.0.1
+      environment:
+        TARGET_GRAPH: http://mu.semte.ch/graphs/harvesting
+        PUBLICATION_GRAPH: http://mu.semte.ch/graphs/public/pdf
+        ALLOW_MU_AUTH_SUDO: true
    ```
 
-2. Mount the folder data/files in the lblod/app-decide repo as a volume and add the mounted path as the environment variable 'MOUNTED_SHARE_FOLDER'. This is the location where the local PDFs must be stored, whereas the remote PDFs will be saved in the folder 'extract' at that location.
-
-3. The file sparql_config.py allows to easily configure SPARQL prefixes and URIs. In case a single graph for input and a single graph for output is desired, set the environment variables TARGET_GRAPH (input) and/or PUBLICATION_GRAPH (output).
-
-4. Set the environment variable SOURCE to an URL or the name of the city to scrape PDFs from. In case of a city name, only Freiburg and Flemish cities are currently supported. (For the latter, only if their decision PDFs are included in https://lokaalbeslist-harvester-2.s.redhost.be/sparql)
+2. The file sparql_config.py allows to easily configure SPARQL prefixes and URIs. In case a single graph for input and a single graph for output is desired, set the environment variables TARGET_GRAPH (input) and/or PUBLICATION_GRAPH (output).
    
 ## Running
 Run the container using 
@@ -53,7 +40,30 @@ INSERT DATA {
       mu:uuid "demo-pdf-scraping" ;
       adms:status <http://redpencil.data.gift/id/concept/JobStatus/scheduled> ;
       task:operation <http://lblod.data.gift/id/jobs/concept/TaskOperation/pdf-scraping> ;
+      task:inputContainer <http://data.lblod.info/id/data-container/demo-scraping> ;
       dct:created "2025-10-31T09:00:00Z"^^xsd:dateTime .
+  }
+
+  GRAPH <http://mu.semte.ch/graphs/harvesting> {
+    <http://data.lblod.info/id/data-container/demo-scraping>
+      a nfo:DataContainer ;
+      mu:uuid "demo-scraping" ;
+      task:hasHarvestingCollection
+        <http://lblod.data.gift/id/harvest-collections/demo-collection> .
+  }
+
+  GRAPH <http://mu.semte.ch/graphs/harvesting> {
+    <http://lblod.data.gift/id/harvest-collections/demo-collection>
+      a <http://lblod.data.gift/vocabularies/harvesting/HarvestingCollection> ;
+      mu:uuid "demo-collection" ;
+      dct:hasPart <http://lblod.data.gift/id/remote-data-objects/demo-source> .
+  }
+
+  GRAPH <http://mu.semte.ch/graphs/harvesting> {
+    <http://lblod.data.gift/id/remote-data-objects/demo-source>
+      a nfo:RemoteDataObject ;
+      mu:uuid "demo-source" ;
+      nie:url <https://district09.gent/nl/over-ons/wettelijke-documenten/besluiten-overlegorgaan> .  # CHANGE THIS TO THE DESIRED SOURCE
   }
 }
 ```
