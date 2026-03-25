@@ -104,7 +104,16 @@ def get_all_pdf_links_from_a_url(url: str) -> list[str]:
     if url.endswith(".pdf"):
         return [url]
     else:
-        r = requests.get(url)
+        try:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+            r = requests.get(url, headers=headers)
+            r.raise_for_status()
+        except requests.RequestException:
+            return []
+            
+        if 'application/pdf' in r.headers.get('Content-Type', '').lower():
+            return [url]
+
         soup = BeautifulSoup(r.text, "html.parser")
 
         pdf_links = []
