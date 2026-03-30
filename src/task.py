@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from .scraping_functions import get_all_pdf_links_from_a_url, get_flanders_city_download_urls, get_freiburg_download_urls, is_url
 from .sparql_config import TASK_OPERATIONS, get_prefixes_for_query, GRAPHS, JOB_STATUSES
 from escape_helpers import sparql_escape_uri, sparql_escape_string
-from helpers import query, update
+from helpers import query, update, log
 
 
 class Task(ABC):
@@ -47,8 +47,8 @@ class Task(ABC):
             get_prefixes_for_query("adms", "task") +
             """
             SELECT ?task ?taskType WHERE {
+              values ?task { $uri }
               ?task task:operation ?taskType .
-              BIND($uri AS ?task)
             }
         """).substitute(uri=sparql_escape_uri(task_uri))
         for b in query(q, sudo=True).get('results').get('bindings'):
@@ -335,7 +335,8 @@ class PdfScrapingTask(Task, ABC):
         - creates a data container containing the harvesting collection
         """
         sources = self.fetch_sources_from_task()
-
+        self.logger.info("T is hier te doen")
+        self.logger.info(sources)
         for source in sources:
             if is_url(source):
                 download_urls = get_all_pdf_links_from_a_url(source)
