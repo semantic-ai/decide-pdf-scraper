@@ -19,15 +19,15 @@ class PdfScrapingTask(Task):
     def __init__(self, task_uri: str):
         super().__init__(task_uri)
 
-    def fetch_source_from_task(self) -> str:
+    def fetch_sources_from_task(self) -> str:
         """
-        Retrieve the source URL (or identifier) linked to this task.
+        Retrieve the URL sources (or identifiers) linked to this task.
 
         This combines fetching the input container and then fetching
-        the source associated with that container.
+        the sources associated with that container.
 
         Returns:
-            string containing the source to scrape (either a URL, "Freiburg" or a Flemish city name)
+            list of strings containing the sources to scrape (either a URL, "Freiburg" or a Flemish city name)
         """
 
         q_container = Template(
@@ -74,8 +74,8 @@ class PdfScrapingTask(Task):
             raise RuntimeError(
                 "No remote files found in harvesting collection")
 
-        source = bindings[0]["source"]["value"]
-        return source
+        sources = [item["source"]["value"] for item in bindings]
+        return sources
 
     @staticmethod
     def get_new_download_urls(urls: list[str], batch_size: int = 20) -> list[str]:
@@ -232,25 +232,22 @@ class PdfScrapingTask(Task):
         - creates a harvesting collection containing these remote data objects
         - creates a data container containing the harvesting collection
         """
-        source = self.fetch_source_from_task()
+        sources = self.fetch_sources_from_task()
+        for source in sources:
+            if is_url(source):
+                download_urls = get_all_pdf_links_from_a_url(source)
+            elif source.lower() == "freiburg":
+                download_urls = get_freiburg_download_urls()
+            else:
+                download_urls = get_flanders_city_download_urls(source)
 
-        if is_url(source):
-            download_urls = get_all_pdf_links_from_a_url(source)
-        elif source.lower() == "freiburg":
-            download_urls = get_freiburg_download_urls()
-        else:
-            download_urls = get_flanders_city_download_urls(source)
+            missing_download_urls = self.get_new_download_urls(download_urls)
 
-        missing_download_urls = self.get_new_download_urls(download_urls)
+            if missing_download_urls:
+                remote_objects = []
+                for url in missing_download_urls:
+                    remote_objects.append(self.create_remote_data_object(url))
 
-        if missing_download_urls:
-            remote_objects = []
-            for url in missing_download_urls:
-                remote_objects.append(self.create_remote_data_object(url))
-
-            harvest_collection_uri = self.create_harvest_collection(
-                remote_objects)
-
-            container_uri = self.create_data_container(harvest_collection_uri)
-
-            self.results_container_uris.append(container_uri)
+                harvest_collection_uri = self.create_harvest_collection(remote_objects)
+                container_uri = self.create_data_container(harvest_collection_uri)
+                self.results_container_uris.append(container_uri)
