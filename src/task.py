@@ -1,123 +1,15 @@
 import uuid
-import logging
-import contextlib
 from string import Template
-from typing import Optional, Type
-from abc import ABC, abstractmethod
+
+from decide_ai_service_base.task import Task
+from decide_ai_service_base.sparql_config import get_prefixes_for_query, GRAPHS, TASK_OPERATIONS
 
 from .scraping_functions import get_all_pdf_links_from_a_url, get_flanders_city_download_urls, get_freiburg_download_urls, is_url
-from .sparql_config import TASK_OPERATIONS, get_prefixes_for_query, GRAPHS, JOB_STATUSES
 from escape_helpers import sparql_escape_uri, sparql_escape_string
 from helpers import query, update
 
 
-class Task(ABC):
-    """Base class for background tasks that process data from the triplestore."""
-
-    def __init__(self, task_uri: str):
-        super().__init__()
-        self.task_uri = task_uri
-        self.results_container_uris = []
-        self.logger = logging.getLogger(self.__class__.__name__)
-
-    @classmethod
-    def supported_operations(cls) -> list[Type['Task']]:
-        all_ops = []
-        for subclass in cls.__subclasses__():
-            if hasattr(subclass, '__task_type__'):
-                all_ops.append(subclass)
-            else:
-                all_ops.extend(subclass.supported_operations())
-        return all_ops
-
-    @classmethod
-    def lookup(cls, task_type: str) -> Optional['Task']:
-        """
-        Yield all subclasses of the given class, per:
-        """
-        for subclass in cls.supported_operations():
-            if hasattr(subclass, '__task_type__') and subclass.__task_type__ == task_type:
-                return subclass
-        return None
-
-    @classmethod
-    def from_uri(cls, task_uri: str) -> 'Task':
-        """Create a Task instance from its URI in the triplestore."""
-        q = Template(
-            get_prefixes_for_query("adms", "task") +
-            """
-            SELECT ?task ?taskType WHERE {
-              ?task task:operation ?taskType .
-              BIND($uri AS ?task)
-            }
-        """).substitute(uri=sparql_escape_uri(task_uri))
-        for b in query(q, sudo=True).get('results').get('bindings'):
-            candidate_cls = cls.lookup(b['taskType']['value'])
-            if candidate_cls is not None:
-                return candidate_cls(task_uri)
-            raise RuntimeError(
-                "Unknown task type {0}".format(b['taskType']['value']))
-        raise RuntimeError("Task with uri {0} not found".format(task_uri))
-
-    def change_state(self, old_state: str, new_state: str, results_container_uris: list = []) -> None:
-        """Update the task status in the triplestore."""
-        query_template = Template(
-            get_prefixes_for_query("task", "adms") +
-            """
-            DELETE {
-            GRAPH <""" + GRAPHS["jobs"] + """> {
-                ?task adms:status ?oldStatus .
-            }
-            }
-            INSERT {
-            GRAPH <""" + GRAPHS["jobs"] + """> {
-                ?task
-                $results_container_line
-                adms:status <$new_status> .
-
-            }
-            }
-            WHERE {
-            GRAPH <""" + GRAPHS["jobs"] + """> {
-                BIND($task AS ?task)
-                BIND(<$old_status> AS ?oldStatus)
-                OPTIONAL { ?task adms:status ?oldStatus . }
-            }
-            }
-            """)
-
-        results_container_line = ""
-        if results_container_uris:
-            results_container_line = "\n".join(
-                [f"task:resultsContainer {sparql_escape_uri(uri)} ;" for uri in results_container_uris])
-
-        query_string = query_template.substitute(
-            new_status=JOB_STATUSES[new_state],
-            old_status=JOB_STATUSES[old_state],
-            task=sparql_escape_uri(self.task_uri),
-            results_container_line=results_container_line)
-
-        update(query_string, sudo=True)
-
-    @contextlib.contextmanager
-    def run(self):
-        """Context manager for task execution with state transitions."""
-        self.change_state("scheduled", "busy")
-        yield
-        self.change_state("busy", "success", self.results_container_uris)
-
-    def execute(self):
-        """Run the task and handle state transitions."""
-        with self.run():
-            self.process()
-
-    @abstractmethod
-    def process(self):
-        """Process task data (implemented by subclasses)."""
-        pass
-
-
-class PdfScrapingTask(Task, ABC):
+class PdfScrapingTask(Task):
     """
     Task for scraping new PDF documents for a given source.
     """
@@ -142,8 +34,10 @@ class PdfScrapingTask(Task, ABC):
             get_prefixes_for_query("task") +
             f"""
             SELECT ?container WHERE {{
-            GRAPH <{GRAPHS["jobs"]}> {{
-                BIND($task AS ?task)
+            GRAPH {sparql_escape_uri(GRAPHS["jobs"])} {{
+                VALUES ?task {{
+                    $task
+                }}
                 ?task task:inputContainer ?container .
             }}
             }}
@@ -161,13 +55,13 @@ class PdfScrapingTask(Task, ABC):
         q_source = f"""
             {get_prefixes_for_query("task", "dct", "nfo", "nie")}
             SELECT ?source WHERE {{
-            GRAPH <{GRAPHS["data_containers"]}> {{
+            GRAPH {sparql_escape_uri(GRAPHS["data_containers"])} {{
                 <{container_uri}> task:hasHarvestingCollection ?collection .
             }}
-            GRAPH <{GRAPHS["harvest_collections"]}> {{
+            GRAPH {sparql_escape_uri(GRAPHS["harvest_collections"])} {{
                 ?collection dct:hasPart ?remote .
             }}
-            GRAPH <{GRAPHS["remote_objects"]}> {{
+            GRAPH {sparql_escape_uri(GRAPHS["remote_objects"])} {{
                 ?remote a nfo:RemoteDataObject ;
                         nie:url ?source .
             }}
@@ -183,7 +77,8 @@ class PdfScrapingTask(Task, ABC):
         source = bindings[0]["source"]["value"]
         return source
 
-    def get_new_download_urls(self, urls: list[str], batch_size: int = 20) -> list[str]:
+    @staticmethod
+    def get_new_download_urls(urls: list[str], batch_size: int = 20) -> list[str]:
         """
         Return the list of PDF download urls that are not yet present in the triple store.
 
@@ -203,10 +98,10 @@ class PdfScrapingTask(Task, ABC):
             q = Template(
                 get_prefixes_for_query("eli") + f"""
                 SELECT ?url WHERE {{
-                    GRAPH <{GRAPHS['manifestations']}> {{
-                        ?manifestation a eli:Manifestation ;
-                                    eli:is_exemplified_by ?url .
+                    GRAPH {sparql_escape_uri(GRAPHS['manifestations'])} {{
                         VALUES ?url {{ {values_clause} }}
+                        ?manifestation a eli:Manifestation ;
+                                    eli:is_exemplified_by ?url .  
                     }}
                 }}
                 """
@@ -222,7 +117,8 @@ class PdfScrapingTask(Task, ABC):
         missing_urls = [u for u in urls if u not in existing_urls]
         return missing_urls
 
-    def create_remote_data_object(self, url: str) -> str:
+    @staticmethod
+    def create_remote_data_object(url: str) -> str:
         """
         Function to create a single remote data object
         for a given PDF downloadURL.
@@ -240,7 +136,7 @@ class PdfScrapingTask(Task, ABC):
             get_prefixes_for_query("nfo", "mu", "nie")
             + f"""
             INSERT DATA {{
-            GRAPH <{GRAPHS["remote_objects"]}> {{
+            GRAPH {sparql_escape_uri(GRAPHS["remote_objects"])} {{
                 $obj a nfo:RemoteDataObject ;
                     mu:uuid $uuid ;
                     nie:url	$url .
@@ -257,7 +153,8 @@ class PdfScrapingTask(Task, ABC):
 
         return remote_object_uri
 
-    def create_harvest_collection(self, remote_object_uris: list[str]) -> str:
+    @staticmethod
+    def create_harvest_collection(remote_object_uris: list[str]) -> str:
         """
         Function to create a single harvesting collection.
 
@@ -276,7 +173,7 @@ class PdfScrapingTask(Task, ABC):
             get_prefixes_for_query("mu", "dct", "harvesting")
             + f"""
             INSERT DATA {{
-            GRAPH <{GRAPHS["harvest_collections"]}> {{
+            GRAPH {sparql_escape_uri(GRAPHS["harvest_collections"])} {{
                 $harvest a harvesting:HarvestingCollection ;
                     mu:uuid $uuid ;
                     dct:hasPart {parts} .
@@ -291,7 +188,8 @@ class PdfScrapingTask(Task, ABC):
         update(q, sudo=True)
         return harvest_uri
 
-    def create_data_container(self, harvest_collection_uri: str) -> str:
+    @staticmethod
+    def create_data_container(harvest_collection_uri: str) -> str:
         """
         Function to create an output data container containg the harvesting collection.
 
@@ -308,7 +206,7 @@ class PdfScrapingTask(Task, ABC):
             get_prefixes_for_query("nfo", "mu", "task")
             + f"""
             INSERT DATA {{
-            GRAPH <{GRAPHS["data_containers"]}> {{
+            GRAPH {sparql_escape_uri(GRAPHS["data_containers"])} {{
                 $container a nfo:DataContainer ;
                     mu:uuid $uuid ;
                     task:hasHarvestingCollection $harvest .
@@ -345,7 +243,7 @@ class PdfScrapingTask(Task, ABC):
 
         missing_download_urls = self.get_new_download_urls(download_urls)
 
-        if missing_download_urls != []:
+        if missing_download_urls:
             remote_objects = []
             for url in missing_download_urls:
                 remote_objects.append(self.create_remote_data_object(url))
