@@ -2,7 +2,7 @@ import requests
 from string import Template
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
-from .sparql_config import get_prefixes_for_query
+from decide_ai_service_base.sparql_config import get_prefixes_for_query
 
 
 def get_freiburg_download_urls(
