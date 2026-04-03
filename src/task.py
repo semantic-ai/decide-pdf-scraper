@@ -1,7 +1,7 @@
 import uuid
 from string import Template
 
-from decide_ai_service_base.task import Task
+from decide_ai_service_base.task import DecisionTask
 from decide_ai_service_base.sparql_config import get_prefixes_for_query, GRAPHS, TASK_OPERATIONS
 
 from .scraping_functions import get_all_pdf_links_from_a_url, get_flanders_city_download_urls, get_freiburg_download_urls, is_url
@@ -9,7 +9,7 @@ from escape_helpers import sparql_escape_uri, sparql_escape_string
 from helpers import query, update
 
 
-class PdfScrapingTask(Task):
+class PdfScrapingTask(DecisionTask):
     """
     Task for scraping new PDF documents for a given source.
     """
