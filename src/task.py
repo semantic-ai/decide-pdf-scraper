@@ -29,44 +29,33 @@ class PdfScrapingTask(DecisionTask):
         Returns:
             list of strings containing the sources to scrape (either a URL, "Freiburg" or a Flemish city name)
         """
-
-        q_container = Template(
-            get_prefixes_for_query("task") +
-            f"""
-            SELECT ?container WHERE {{
-            GRAPH {sparql_escape_uri(GRAPHS["jobs"])} {{
-                VALUES ?task {{
-                    $task
-                }}
-                ?task task:inputContainer ?container .
-            }}
-            }}
+        q_source = Template(
+            get_prefixes_for_query("task", "dct", "nfo", "nie")
+            + """
+                SELECT ?source WHERE {
+                GRAPH $graphs_jobs {
+                    $task task:inputContainer ?container .
+                }
+                GRAPH $graphs_data_containers {
+                    ?container task:hasHarvestingCollection ?collection .
+                }
+                GRAPH $graphs_harvest_collections {
+                    ?collection dct:hasPart ?remote .
+                }
+                GRAPH $graphs_remote_objects {
+                    ?remote a nfo:RemoteDataObject ;
+                            nie:url ?source .
+                }
+                }
             """
-        ).substitute(task=sparql_escape_uri(self.task_uri))
-
-        bindings = query(q_container, sudo=True).get(
-            "results", {}).get("bindings", [])
-        if not bindings:
-            raise RuntimeError(
-                f"No input container found for task {self.task_uri}")
-
-        container_uri = bindings[0]["container"]["value"]
-
-        q_source = f"""
-            {get_prefixes_for_query("task", "dct", "nfo", "nie")}
-            SELECT ?source WHERE {{
-            GRAPH {sparql_escape_uri(GRAPHS["data_containers"])} {{
-                <{container_uri}> task:hasHarvestingCollection ?collection .
-            }}
-            GRAPH {sparql_escape_uri(GRAPHS["harvest_collections"])} {{
-                ?collection dct:hasPart ?remote .
-            }}
-            GRAPH {sparql_escape_uri(GRAPHS["remote_objects"])} {{
-                ?remote a nfo:RemoteDataObject ;
-                        nie:url ?source .
-            }}
-            }}
-            """
+        ).substitute(
+            prefixes=get_prefixes_for_query("task", "dct", "nfo", "nie"),
+            graphs_jobs=sparql_escape_uri(GRAPHS["jobs"]),
+            graphs_data_containers=sparql_escape_uri(GRAPHS["data_containers"]),
+            graphs_harvest_collections=sparql_escape_uri(GRAPHS["harvest_collections"]),
+            graphs_remote_objects=sparql_escape_uri(GRAPHS["remote_objects"]),
+            task=sparql_escape_uri(self.task_uri)
+        )
 
         bindings = query(q_source, sudo=True).get(
             "results", {}).get("bindings", [])
@@ -96,16 +85,19 @@ class PdfScrapingTask(DecisionTask):
             values_clause = " ".join(sparql_escape_uri(u) for u in batch)
 
             q = Template(
-                get_prefixes_for_query("eli") + f"""
-                SELECT ?url WHERE {{
-                    GRAPH {sparql_escape_uri(GRAPHS['manifestations'])} {{
-                        VALUES ?url {{ {values_clause} }}
+                get_prefixes_for_query("eli") + """
+                SELECT ?url WHERE {
+                    GRAPH $graphs_manifestations {
+                        VALUES ?url { $values_clause }
                         ?manifestation a eli:Manifestation ;
                                     eli:is_exemplified_by ?url .  
-                    }}
-                }}
+                    }
+                }
                 """
-            ).substitute()
+            ).substitute(
+                graphs_manifestations=sparql_escape_uri(GRAPHS['manifestations']),
+                values_clause=values_clause
+            )
 
             results = query(q, sudo=True)
             existing_urls.update(
@@ -134,16 +126,17 @@ class PdfScrapingTask(DecisionTask):
 
         q = Template(
             get_prefixes_for_query("nfo", "mu", "nie")
-            + f"""
-            INSERT DATA {{
-            GRAPH {sparql_escape_uri(GRAPHS["remote_objects"])} {{
+            + """
+            INSERT DATA {
+            GRAPH $graphs_remote_objects {
                 $obj a nfo:RemoteDataObject ;
                     mu:uuid $uuid ;
                     nie:url	$url .
-            }}
-            }}
+            }
+            }
             """
         ).substitute(
+            graphs_remote_objects=sparql_escape_uri(GRAPHS["remote_objects"]),
             obj=sparql_escape_uri(remote_object_uri),
             uuid=sparql_escape_string(remote_object_uuid),
             url=sparql_escape_uri(url)
@@ -171,17 +164,20 @@ class PdfScrapingTask(DecisionTask):
 
         q = Template(
             get_prefixes_for_query("mu", "dct", "harvesting")
-            + f"""
-            INSERT DATA {{
-            GRAPH {sparql_escape_uri(GRAPHS["harvest_collections"])} {{
+            + """
+            INSERT DATA {
+            GRAPH $graphs_harvest_collections {
                 $harvest a harvesting:HarvestingCollection ;
                     mu:uuid $uuid ;
-                    dct:hasPart {parts} .
-            }}
-            }}
+                    dct:hasPart $parts .
+            }
+            }
             """
         ).substitute(
+            graphs_harvest_collections=sparql_escape_uri(GRAPHS["harvest_collections"]),
             harvest=sparql_escape_uri(harvest_uri),
+            uuid=sparql_escape_string(harvest_uuid),
+            parts=parts
             uuid=sparql_escape_string(harvest_uuid),
         )
 
@@ -204,16 +200,17 @@ class PdfScrapingTask(DecisionTask):
 
         q = Template(
             get_prefixes_for_query("nfo", "mu", "task")
-            + f"""
-            INSERT DATA {{
-            GRAPH {sparql_escape_uri(GRAPHS["data_containers"])} {{
+            + """
+            INSERT DATA {
+            GRAPH $graphs_data_containers {
                 $container a nfo:DataContainer ;
                     mu:uuid $uuid ;
                     task:hasHarvestingCollection $harvest .
-            }}
-            }}
+            }
+            }
             """
         ).substitute(
+            graphs_data_containers=sparql_escape_uri(GRAPHS["data_containers"]),
             container=sparql_escape_uri(container_uri),
             uuid=sparql_escape_string(container_uuid),
             harvest=sparql_escape_uri(harvest_collection_uri),
