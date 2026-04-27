@@ -29,44 +29,29 @@ class PdfScrapingTask(DecisionTask):
         Returns:
             list of strings containing the sources to scrape (either a URL, "Freiburg" or a Flemish city name)
         """
-
-        q_container = Template(
-            get_prefixes_for_query("task") +
+        q_source = Template(
             f"""
-            SELECT ?container WHERE {{
-            GRAPH {sparql_escape_uri(GRAPHS["jobs"])} {{
-                VALUES ?task {{
-                    $task
+                {get_prefixes_for_query("task", "dct", "nfo", "nie")}
+                SELECT ?source WHERE {{
+                GRAPH {sparql_escape_uri(GRAPHS["jobs"])} {{
+                    VALUES ?task {{
+                        $task
+                    }}
+                    ?task task:inputContainer ?container .
                 }}
-                ?task task:inputContainer ?container .
-            }}
-            }}
+                GRAPH {sparql_escape_uri(GRAPHS["data_containers"])} {{
+                    ?container task:hasHarvestingCollection ?collection .
+                }}
+                GRAPH {sparql_escape_uri(GRAPHS["harvest_collections"])} {{
+                    ?collection dct:hasPart ?remote .
+                }}
+                GRAPH {sparql_escape_uri(GRAPHS["remote_objects"])} {{
+                    ?remote a nfo:RemoteDataObject ;
+                            nie:url ?source .
+                }}
+                }}
             """
-        ).substitute(task=sparql_escape_uri(self.task_uri))
-
-        bindings = query(q_container, sudo=True).get(
-            "results", {}).get("bindings", [])
-        if not bindings:
-            raise RuntimeError(
-                f"No input container found for task {self.task_uri}")
-
-        container_uri = bindings[0]["container"]["value"]
-
-        q_source = f"""
-            {get_prefixes_for_query("task", "dct", "nfo", "nie")}
-            SELECT ?source WHERE {{
-            GRAPH {sparql_escape_uri(GRAPHS["data_containers"])} {{
-                <{container_uri}> task:hasHarvestingCollection ?collection .
-            }}
-            GRAPH {sparql_escape_uri(GRAPHS["harvest_collections"])} {{
-                ?collection dct:hasPart ?remote .
-            }}
-            GRAPH {sparql_escape_uri(GRAPHS["remote_objects"])} {{
-                ?remote a nfo:RemoteDataObject ;
-                        nie:url ?source .
-            }}
-            }}
-            """
+            ).substitute(task=sparql_escape_uri(self.task_uri))
 
         bindings = query(q_source, sudo=True).get(
             "results", {}).get("bindings", [])
