@@ -177,8 +177,7 @@ class PdfScrapingTask(DecisionTask):
             graphs_harvest_collections=sparql_escape_uri(GRAPHS["harvest_collections"]),
             harvest=sparql_escape_uri(harvest_uri),
             uuid=sparql_escape_string(harvest_uuid),
-            parts=parts
-            uuid=sparql_escape_string(harvest_uuid),
+            parts=parts,
         )
 
         update(q, sudo=True)
