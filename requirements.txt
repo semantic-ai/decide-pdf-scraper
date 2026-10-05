@@ -1,3 +1,4 @@
 requests==2.32.5
 beautifulsoup4==4.14.3
 https://github.com/semantic-ai/decide-ai-service-base/releases/download/0.1.11/decide_ai_service_base-0.1.11-py3-none-any.whl
+pytest==9.1.1

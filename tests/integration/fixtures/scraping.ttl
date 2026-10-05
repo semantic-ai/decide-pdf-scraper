@@ -1,0 +1,28 @@
+@prefix adms:  <http://www.w3.org/ns/adms#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix task:  <http://redpencil.data.gift/vocabularies/tasks/> .
+@prefix nfo:   <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#> .
+@prefix nie:   <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#> .
+@prefix mu:    <http://mu.semte.ch/vocabularies/core/> .
+
+<http://example.org/test/remote/scraping>
+    a nfo:RemoteDataObject ;
+    mu:uuid "test-remote-scraping" ;
+    nie:url <http://127.0.0.1:8000/decisions.html> .
+
+<http://example.org/test/collection/scraping>
+    a <http://lblod.data.gift/vocabularies/harvesting/HarvestingCollection> ;
+    mu:uuid "test-collection-scraping" ;
+    dct:hasPart <http://example.org/test/remote/scraping> .
+
+<http://example.org/test/container/scraping>
+    a nfo:DataContainer ;
+    mu:uuid "test-container-scraping" ;
+    task:hasHarvestingCollection <http://example.org/test/collection/scraping> .
+
+<http://example.org/test/task/scraping>
+    a task:Task ;
+    mu:uuid "test-task-scraping" ;
+    adms:status <http://redpencil.data.gift/id/concept/JobStatus/scheduled> ;
+    task:operation <http://lblod.data.gift/id/jobs/concept/TaskOperation/pdf-scraping> ;
+    task:inputContainer <http://example.org/test/container/scraping> .
