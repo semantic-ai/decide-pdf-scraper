@@ -1,0 +1,34 @@
+@prefix adms:  <http://www.w3.org/ns/adms#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix task:  <http://redpencil.data.gift/vocabularies/tasks/> .
+@prefix nfo:   <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#> .
+@prefix nie:   <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#> .
+@prefix mu:    <http://mu.semte.ch/vocabularies/core/> .
+@prefix eli:   <http://data.europa.eu/eli/ontology#> .
+
+<http://example.org/test/remote/known-pdf>
+    a nfo:RemoteDataObject ;
+    mu:uuid "test-remote-known-pdf" ;
+    nie:url <http://127.0.0.1:8000/decisions.html> .
+
+<http://example.org/test/collection/known-pdf>
+    a <http://lblod.data.gift/vocabularies/harvesting/HarvestingCollection> ;
+    mu:uuid "test-collection-known-pdf" ;
+    dct:hasPart <http://example.org/test/remote/known-pdf> .
+
+<http://example.org/test/container/known-pdf>
+    a nfo:DataContainer ;
+    mu:uuid "test-container-known-pdf" ;
+    task:hasHarvestingCollection <http://example.org/test/collection/known-pdf> .
+
+<http://example.org/test/task/known-pdf>
+    a task:Task ;
+    mu:uuid "test-task-known-pdf" ;
+    adms:status <http://redpencil.data.gift/id/concept/JobStatus/scheduled> ;
+    task:operation <http://lblod.data.gift/id/jobs/concept/TaskOperation/pdf-scraping> ;
+    task:inputContainer <http://example.org/test/container/known-pdf> .
+
+<http://example.org/test/manifestation/known>
+    a eli:Manifestation ;
+    mu:uuid "test-manifestation-known" ;
+    eli:is_exemplified_by <http://127.0.0.1:8000/docs/besluit-1.pdf> .

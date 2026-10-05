@@ -1,0 +1,15 @@
+@prefix adms:  <http://www.w3.org/ns/adms#> .
+@prefix task:  <http://redpencil.data.gift/vocabularies/tasks/> .
+@prefix nfo:   <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#> .
+@prefix mu:    <http://mu.semte.ch/vocabularies/core/> .
+
+<http://example.org/test/container/no-collection>
+    a nfo:DataContainer ;
+    mu:uuid "test-container-no-collection" .
+
+<http://example.org/test/task/no-collection>
+    a task:Task ;
+    mu:uuid "test-task-no-collection" ;
+    adms:status <http://redpencil.data.gift/id/concept/JobStatus/scheduled> ;
+    task:operation <http://lblod.data.gift/id/jobs/concept/TaskOperation/pdf-scraping> ;
+    task:inputContainer <http://example.org/test/container/no-collection> .
